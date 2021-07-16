@@ -15,20 +15,17 @@
 ARG RUBY_VERSION
 ARG GOLANG_VERSION
 
-FROM sethvargo/hashicorp-installer:0.1.3 AS installer
+FROM sethvargo/hashicorp-installer:0.2.0 AS installer
 # Required to download and install Terraform
 ARG TERRAFORM_VERSION
 ENV TERRAFORM_VERSION ${TERRAFORM_VERSION}
 RUN /install-hashicorp-tool "terraform" "$TERRAFORM_VERSION"
 
-FROM golang:$GOLANG_VERSION-alpine AS terraform-bundle-builder
-# Builds terraform-bundle
-ARG TERRAFORM_VERSION
-ENV TERRAFORM_VERSION ${TERRAFORM_VERSION}
-RUN apk add git unzip
-RUN git clone --depth 1 --branch v"$TERRAFORM_VERSION" https://github.com/hashicorp/terraform && \
-    cd terraform/tools/terraform-bundle && \
-    go install .
+# Builds module-swapper
+FROM golang:$GOLANG_VERSION-alpine AS module-swapper-builder
+WORKDIR /go/src/github.com/GoogleCloudPlatform/infra/developer-tools/build/scripts/module-swapper
+COPY ./build/scripts/module-swapper ./
+RUN go build -v -o /usr/local/bin/module-swapper
 
 FROM golang:$GOLANG_VERSION-alpine AS go
 
@@ -74,6 +71,10 @@ ENV TERRAGRUNT_VERSION ${TERRAGRUNT_VERSION}
 ARG KUSTOMIZE_VERSION
 ENV KUSTOMIZE_VERSION ${KUSTOMIZE_VERSION}
 
+# Required to download and install Kpt
+ARG KPT_VERSION
+ENV KPT_VERSION ${KPT_VERSION}
+
 # $WORKSPACE is intended for assets that persist across multiple build steps in a pipeline.
 # It's also where the project git repository is located.
 # https://cloud.google.com/cloud-build/docs/build-config
@@ -102,8 +103,8 @@ COPY --from=go /usr/local/go/ /usr/local/go/
 RUN ln -s /usr/local/go/bin/go /usr/local/bin/go
 RUN ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
-# Installs terraform-bundler
-COPY --from=terraform-bundle-builder /go/bin/terraform-bundle /bin/terraform-bundle
+# Install module swapper
+COPY --from=module-swapper-builder /usr/local/bin/module-swapper /usr/local/bin/module-swapper
 
 ADD ./build/install_shellcheck.sh /build/
 RUN /build/install_shellcheck.sh
@@ -125,6 +126,9 @@ RUN ./build/install_terragrunt.sh ${TERRAGRUNT_VERSION}
 
 ADD ./build/install_kustomize.sh /build/
 RUN ./build/install_kustomize.sh ${KUSTOMIZE_VERSION}
+
+ADD ./build/install_kpt.sh /build/
+RUN ./build/install_kpt.sh ${KPT_VERSION}
 
 WORKDIR /opt/kitchen
 ADD ./build/data/Gemfile .
@@ -158,6 +162,10 @@ ADD ./build/scripts/gh_lint_comment.py /usr/local/bin/
 # Intended to help developers iterate quickly
 ADD ./build/home/bash_history /root/.bash_history
 ADD ./build/home/bashrc /root/.bashrc
+
+# Set TF cache dir
+ENV TF_PLUGIN_CACHE_DIR /workspace/test/integration/tmp/.terraform
+RUN mkdir -p ${TF_PLUGIN_CACHE_DIR}
 
 WORKDIR $WORKSPACE
 RUN terraform --version && \

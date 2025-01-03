@@ -15,18 +15,17 @@
  */
 
 terraform {
-  required_version = "~> 1.2.0"
+  required_version = ">= 1.4.4"
   required_providers {
     github = {
       source  = "integrations/github"
-      version = "~> 4.0"
+      version = "~> 6.0"
     }
     google = {
-      version = ">= 3.39, < 5.0"
+      version = ">= 5.26, < 7"
     }
     google-beta = {
-      version = ">= 3.39, < 5.0"
+      version = ">= 5.26, < 7"
     }
   }
 }
-

@@ -1,5 +1,5 @@
 /**
- * Copyright 2021 Google LLC
+ * Copyright 2021-2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-foundation-toolkit/infra/blueprint-test/pkg/utils"
 	"github.com/gruntwork-io/terratest/modules/logger"
 	"github.com/gruntwork-io/terratest/modules/shell"
+	"github.com/mattn/go-shellwords"
 	"github.com/mitchellh/go-testing-interface"
 	"github.com/tidwall/gjson"
 )
@@ -93,7 +94,10 @@ func RunCmdE(t testing.TB, cmd string, opts ...cmdOption) (string, error) {
 		t.Fatal(err)
 	}
 	// split command into args
-	args := strings.Fields(cmd)
+	args, err := shellwords.Parse(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
 	gcloudCmd := shell.Command{
 		Command: "gcloud",
 		Args:    append(args, gOpts.commonArgs...),
@@ -130,7 +134,7 @@ func TFVet(t testing.TB, planFilePath string, policyLibraryPath, terraformVetPro
 //
 // It fails the test if there are any errors executing the gcloud command or parsing the output value.
 func RunWithCmdOptsf(t testing.TB, opts []cmdOption, cmd string, args ...interface{}) gjson.Result {
-	return Run(t, stringFromTextAndArgs(append([]interface{}{cmd}, args...)...), opts...)
+	return Run(t, utils.StringFromTextAndArgs(append([]interface{}{cmd}, args...)...), opts...)
 }
 
 // Runf executes a gcloud command and returns value as gjson.Result.
@@ -139,25 +143,7 @@ func RunWithCmdOptsf(t testing.TB, opts []cmdOption, cmd string, args ...interfa
 //
 // It fails the test if there are any errors executing the gcloud command or parsing the output value.
 func Runf(t testing.TB, cmd string, args ...interface{}) gjson.Result {
-	return Run(t, stringFromTextAndArgs(append([]interface{}{cmd}, args...)...))
-}
-
-// stringFromTextAndArgs convert msg and args to formatted text
-func stringFromTextAndArgs(msgAndArgs ...interface{}) string {
-	if len(msgAndArgs) == 0 || msgAndArgs == nil {
-		return ""
-	}
-	if len(msgAndArgs) == 1 {
-		msg := msgAndArgs[0]
-		if msgAsStr, ok := msg.(string); ok {
-			return msgAsStr
-		}
-		return fmt.Sprintf("%+v", msg)
-	}
-	if len(msgAndArgs) > 1 {
-		return fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...)
-	}
-	return ""
+	return Run(t, utils.StringFromTextAndArgs(append([]interface{}{cmd}, args...)...))
 }
 
 // ActivateCredsAndEnvVars activates credentials and exports auth related envvars.

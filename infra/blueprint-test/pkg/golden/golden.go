@@ -19,7 +19,6 @@ package golden
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -29,12 +28,14 @@ import (
 	"github.com/mitchellh/go-testing-interface"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	gfDir          = "testdata"
 	gfPerms        = 0755
 	gfUpdateEnvVar = "UPDATE_GOLDEN"
+	gGoroutinesMax = 24
 )
 
 type GoldenFile struct {
@@ -119,7 +120,7 @@ func (g *GoldenFile) update(data string) {
 	// apply sanitizers on data
 	data = g.ApplySanitizers(data)
 
-	err = ioutil.WriteFile(fp, []byte(data), gfPerms)
+	err = os.WriteFile(fp, []byte(data), gfPerms)
 	if err != nil {
 		g.t.Fatalf("error updating result: %v", err)
 	}
@@ -153,7 +154,25 @@ func (g *GoldenFile) GetJSON() gjson.Result {
 // JSONEq asserts that json content in jsonPath for got and goldenfile is the same
 func (g *GoldenFile) JSONEq(a *assert.Assertions, got gjson.Result, jsonPath string) {
 	gf := g.GetJSON()
-	gotData := g.ApplySanitizers(got.Get(jsonPath).String())
-	gfData := gf.Get(jsonPath).String()
-	a.Equal(gfData, gotData, fmt.Sprintf("expected %s to match fixture %s", jsonPath, gfData))
+	getPath := fmt.Sprintf("%s|@ugly", jsonPath)
+	gotData := g.ApplySanitizers(got.Get(getPath).String())
+	gfData := gf.Get(getPath).String()
+	a.Equalf(gfData, gotData, "For path %q expected %q to match fixture %q", jsonPath, gotData, gfData)
+}
+
+// JSONPathEqs asserts that json content in jsonPaths for got and goldenfile are the same
+func (g *GoldenFile) JSONPathEqs(a *assert.Assertions, got gjson.Result, jsonPaths []string) {
+	syncGroup := new(errgroup.Group)
+	syncGroup.SetLimit(gGoroutinesMax)
+	g.t.Logf("Checking %d JSON paths with max %d goroutines", len(jsonPaths), gGoroutinesMax)
+	for _, jsonPath := range jsonPaths {
+		jsonPath := jsonPath
+		syncGroup.Go(func() error {
+			g.JSONEq(a, got, jsonPath)
+			return nil
+		})
+	}
+	if err := syncGroup.Wait(); err != nil {
+		g.t.Fatal(err)
+	}
 }

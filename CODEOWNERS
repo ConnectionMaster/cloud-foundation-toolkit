@@ -1,11 +1,4 @@
 # Main team administering overall repo
-*           @bharathkkb @ocsig @kaariger @g-awmalik @apeabody
-
-# Deployment Manager Reviewers
-/dm/        @ocsig @sjvanrossum
-
-# CLI owners
-/cli/       @bharathkkb @kaariger @g-awmalik @apeabody
-
-# Config Connector team
-/config-connector/ @ocsig @AlexBulankou @maqiuyujoyce
+*           @bharathkkb @g-awmalik @apeabody
+# ADC team reviewers
+/cli/ @q2w @GoogleCloudPlatform/blueprint-solutions

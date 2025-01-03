@@ -1,5 +1,5 @@
 #! /bin/bash
-# Copyright 2022 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,15 @@
 set -e
 set -u
 
+mkdir -p /build/install_cft_cli
+cd /build/install_cft_cli
+
 CFT_CLI_VERSION=$1
 
-cd /build
+if ! wget -nv "https://github.com/GoogleCloudPlatform/cloud-foundation-toolkit/releases/download/cli%2Fv${CFT_CLI_VERSION}/cft-linux-amd64"; then
+  wget -nv "https://github.com/GoogleCloudPlatform/cloud-foundation-toolkit/releases/download/v${CFT_CLI_VERSION}/cft-linux-amd64"
+fi
 
-wget "https://github.com/GoogleCloudPlatform/cloud-foundation-toolkit/releases/download/v${CFT_CLI_VERSION}/cft-linux-amd64"
 install -o 0 -g 0 -m 0755 cft-linux-amd64 /usr/local/bin/cft
+
+rm -rf /build/install_cft_cli

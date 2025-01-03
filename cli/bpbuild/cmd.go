@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/GoogleCloudPlatform/cloud-foundation-toolkit/cli/util"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -33,7 +34,6 @@ func init() {
 	avgTimeCmd.Flags().StringVar(&avgTimeFlags.lookUpEnd, "end-time", "", "Time to stop computing build step avg in form MM-DD-YYYY. Defaults to current date.")
 	avgTimeCmd.Flags().StringVar(&avgTimeFlags.projectId, "project-id", "cloud-foundation-cicd", "Project ID where builds are executed.")
 	avgTimeCmd.Flags().StringVar(&avgTimeFlags.repoName, "repo", "", "Name of repo that triggered the builds. Defaults to extracting from git config.")
-
 }
 
 var Cmd = &cobra.Command{
@@ -113,7 +113,7 @@ func setAvgTimeFlagDefaults() error {
 			return fmt.Errorf("error finding build file: %w", err)
 		}
 		steps := getBuildStepIDs(buildFile)
-		avgTimeFlags.buildStepID = promptSelect("Select build step to compute average", steps)
+		avgTimeFlags.buildStepID = util.PromptSelect("Select build step to compute average", steps)
 	}
 
 	// if no explicit start time, default to starting computation from one month ago.

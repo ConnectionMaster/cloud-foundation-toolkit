@@ -3,7 +3,9 @@ package bptest
 import (
 	"fmt"
 	"os"
+	"path"
 
+	"github.com/GoogleCloudPlatform/cloud-foundation-toolkit/cli/util"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -12,6 +14,7 @@ import (
 var flags struct {
 	testDir   string
 	testStage string
+	setupVars map[string]string
 }
 
 func init() {
@@ -19,9 +22,12 @@ func init() {
 	Cmd.AddCommand(listCmd)
 	Cmd.AddCommand(runCmd)
 	Cmd.AddCommand(convertCmd)
+	Cmd.AddCommand(initCmd)
+	Cmd.AddCommand(lintCmd)
 
 	Cmd.PersistentFlags().StringVar(&flags.testDir, "test-dir", "", "Path to directory containing integration tests (default is computed by scanning current working directory)")
-	runCmd.Flags().StringVar(&flags.testStage, "stage", "", "Test stage to execute (default is running all stages in order - init, apply, verify, teardown)")
+	runCmd.Flags().StringVar(&flags.testStage, "stage", "", "Test stage to execute (default is running all stages in order - init, plan, apply, verify, teardown)")
+	runCmd.Flags().StringToStringVar(&flags.setupVars, "setup-var", map[string]string{}, "Specify outputs from the setup phase (useful with --stage=verify)")
 }
 
 var Cmd = &cobra.Command{
@@ -35,7 +41,7 @@ var Cmd = &cobra.Command{
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "list tests",
-	Long:  "Lists both auto discovered and explicit intergration tests",
+	Long:  "Lists both auto discovered and explicit integration tests",
 
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -77,7 +83,7 @@ var runCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		intTestDir, err := getIntTestDir(flags.testDir)
 		if err != nil {
-			return fmt.Errorf("error discovering test dir: %v", err)
+			return fmt.Errorf("error discovering test dir: %w", err)
 		}
 		testStage, err := validateAndGetStage(flags.testStage)
 		if err != nil {
@@ -87,7 +93,7 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		testCmd, err := getTestCmd(intTestDir, testStage, args[0], relTestPkg)
+		testCmd, err := getTestCmd(intTestDir, testStage, args[0], relTestPkg, flags.setupVars)
 		if err != nil {
 			return err
 		}
@@ -109,5 +115,45 @@ var convertCmd = &cobra.Command{
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return convertKitchenTests()
+	},
+}
+
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "initialize blueprint test",
+	Long:  "Initialize a new blueprint test",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var initTestName string
+		// if no args, prompt user to select from examples
+		if len(args) < 1 {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			examplePaths, err := util.WalkTerraformDirs(path.Join(cwd, "examples"))
+			if err != nil {
+				return err
+			}
+			exampleNames := make([]string, 0, len(examplePaths))
+			for _, examplePath := range examplePaths {
+				exampleNames = append(exampleNames, path.Base(examplePath))
+			}
+			initTestName = util.PromptSelect("Select example for test", exampleNames)
+		} else {
+			initTestName = args[0]
+		}
+		return initTest(initTestName)
+	},
+}
+
+var lintCmd = &cobra.Command{
+	Use:   "lint",
+	Short: "Lints blueprint",
+	Long:  "Lints TF blueprint",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		RunLintCommand()
+		return nil
 	},
 }

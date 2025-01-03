@@ -16,13 +16,13 @@
 
 module "ci_media_cdn_vod_project" {
   source  = "terraform-google-modules/project-factory/google"
-  version = "~> 13.0"
+  version = "~> 17.0"
 
   name            = "ci-media-cdn-vod-project"
   project_id      = "ci-media-cdn-vod-project"
   org_id          = local.org_id
   folder_id       = module.folders-ci.ids["ci-media-cdn-vod"]
-  billing_account = local.billing_account
+  billing_account = local.old_billing_account
 
   labels = {
     cft-ci = "permanent"

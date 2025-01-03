@@ -3,26 +3,41 @@ on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
+  release:
+    types: [released]
+  push:
+    branches:
+      - "master"
 
 env:
   TERRAFORM_URL: "https://api.github.com/repos/hashicorp/terraform/releases/latest"
   CLOUD_SDK_URL: "https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz"
-  KPT_URL: "https://api.github.com/repos/GoogleContainerTools/kpt/releases"
+  KPT_URL: "https://api.github.com/repos/kptdev/kpt/releases"
   CFT_CLI_URL: "https://api.github.com/repos/GoogleCloudPlatform/cloud-foundation-toolkit/releases"
-  KUBECTL_MINOR: "1.23"
-  KUBECTL_URL: "https://api.github.com/repos/kubernetes/kubernetes/releases"
+  MODULE_SWAPPER_URL: "https://api.github.com/repos/GoogleCloudPlatform/cloud-foundation-toolkit/releases"
+  TFLINT_BP_PLUGIN_URL: "https://api.github.com/repos/GoogleCloudPlatform/cloud-foundation-toolkit/releases"
+  GATOR_MINOR: "3.17"
+  GATOR_URL: "https://api.github.com/repos/open-policy-agent/gatekeeper/releases"
+  GCRANE_URL: "https://api.github.com/repos/google/go-containerregistry/releases/latest"
+  KUSTOMIZE_URL: "https://api.github.com/repos/kubernetes-sigs/kustomize/releases"
+  TERRAGRUNT_URL: "https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest"
+  TFLINT_URL: "https://api.github.com/repos/terraform-linters/tflint/releases/latest"
+  GOLANGCI_URL: "https://api.github.com/repos/golangci/golangci-lint/releases/latest"
 
 jobs:
   update-tools:
     runs-on: ubuntu-latest
+    if: github.repository == 'GoogleCloudPlatform/cloud-foundation-toolkit'
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: master
       - name: Update Tools
         run: |
           PR_UPDATE_BODY=""
           newline=$'\n'
-          # Skip "KPT" till resolved: https://github.com/GoogleCloudPlatform/cloud-foundation-toolkit/issues/1190
-          tools=("TERRAFORM" "CLOUD_SDK" "CFT_CLI" "KUBECTL")
+          tools=("TERRAFORM" "CLOUD_SDK" "CFT_CLI" "GATOR" "GCRANE" "KPT" "MODULE_SWAPPER" "KUSTOMIZE" "TERRAGRUNT" "TFLINT" "GOLANGCI" "TFLINT_BP_PLUGIN")
 
           for tool in ${tools[@]}
           do
@@ -38,10 +53,19 @@ jobs:
               LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .tag_name | contains("porch/") | not )][0].tag_name' | tr -d "v")
             elif [ "$tool" == "CFT_CLI" ]; then
               # get latest CFT_CLI release
-              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("CLI Release"))][0].tag_name' | tr -d "v")
-            elif [ "$tool" == "KUBECTL" ]; then
-              # get latest KUBECTL_MINOR release
-              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("'${KUBECTL_MINOR}'"))][0].tag_name' | tr -d "v")
+              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("CLI Release"))][0].tag_name' | tr -d "cli/v")
+            elif [ "$tool" == "MODULE_SWAPPER" ]; then
+              # get latest MODULE_SWAPPER release
+              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("infra/module-swapper"))][0].tag_name' | tr -d "infra/module\-swapper/v")
+            elif [ "$tool" == "TFLINT_BP_PLUGIN" ]; then
+              # get latest TFLINT_BP_PLUGIN release
+              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("tflint-ruleset-blueprint"))][0].tag_name' | tr -d "tflint\-ruleset\-blueprint/v")
+            elif [ "$tool" == "GATOR" ]; then
+              # get latest GATOR_MINOR release
+              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("'${GATOR_MINOR}'"))][0].tag_name' | tr -d "v")
+            elif [ "$tool" == "KUSTOMIZE" ]; then
+              # get latest KUSTOMIZE release
+              LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output '[ .[] | select( .name | contains("kustomize"))][0].tag_name' | tr -d "kustomize/v")
             else
               LATEST_TOOL_VERSION=$(curl -s ${!TOOL_URL} | jq --raw-output .tag_name | tr -d "v")
             fi
@@ -51,6 +75,8 @@ jobs:
             # update tool version in Makefile if not latest
             if [ "$CURRENT_TOOL_VERSION" == "$LATEST_TOOL_VERSION" ]; then
               echo "${tool} is latest"
+            elif [[ -z "$CURRENT_TOOL_VERSION" || "$CURRENT_TOOL_VERSION" == "" || "$CURRENT_TOOL_VERSION" == "null" ]]; then
+              echo "${tool} version is missing"
             else
               echo "${tool} needs to be updated to ${LATEST_TOOL_VERSION}"
               sed -i "s/${tool}_VERSION := ${CURRENT_TOOL_VERSION}/${tool}_VERSION := ${LATEST_TOOL_VERSION}/g" infra/build/Makefile
@@ -77,18 +103,19 @@ jobs:
           git config user.name 'Cloud Foundation Bot'
           git config user.email 'cloud-foundation-bot@google.com'
           git add infra/build/Makefile
-          git diff-index --quiet HEAD || git commit -m "Update tools to ${{env.NEW_IMG_VERSION}}"
+          git diff-index --quiet HEAD || git commit -m "chore: Update Tools to ${{env.NEW_IMG_VERSION}}"
       - name: Create Pull Request
         if: env.BUMP_IMG == 'true'
-        uses: peter-evans/create-pull-request@dcd5fd746d53dd8de555c0f10bca6c35628be47a
+        uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
         with:
           token: ${{ secrets.CFT_ROBOT_PAT }}
           commit-message: Update tools to ${{env.NEW_IMG_VERSION}}
           committer: "Update Tooling Action <cloud-foundation-bot@google.com>"
-          title: "Update Tools to ${{env.NEW_IMG_VERSION}}"
+          title: "chore: Update Tools to ${{env.NEW_IMG_VERSION}}"
           body: |
             Updated tools to ${{env.NEW_IMG_VERSION}}
             ${{env.PR_UPDATE_BODY}}
           labels: automated pr
           reviewers: bharathkkb, apeabody
           branch: create-pull-request/patch-tools-version
+          base: master

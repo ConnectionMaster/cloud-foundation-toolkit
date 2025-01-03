@@ -23,7 +23,7 @@ var (
 func fileExists(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return false, fmt.Errorf("unable to read file at the provided path: %v", err)
+		return false, fmt.Errorf("unable to read file at the provided path: %w", err)
 	}
 
 	if info.IsDir() {
@@ -33,22 +33,22 @@ func fileExists(path string) (bool, error) {
 	return true, nil
 }
 
-func getExamples(configPath string) ([]BlueprintMiscContent, error) {
+func getExamples(configPath string) ([]*BlueprintMiscContent, error) {
 	return getDirPaths(configPath, reExamples)
 }
 
-func getModules(configPath string) ([]BlueprintMiscContent, error) {
+func getModules(configPath string) ([]*BlueprintMiscContent, error) {
 	return getDirPaths(configPath, reModules)
 }
 
 // getDirPaths traverses a given path and looks for directories
 // with TF configs while ignoring the .terraform* directories created and
 // used internally by the Terraform CLI
-func getDirPaths(configPath string, re *regexp.Regexp) ([]BlueprintMiscContent, error) {
-	paths := []BlueprintMiscContent{}
+func getDirPaths(configPath string, re *regexp.Regexp) ([]*BlueprintMiscContent, error) {
+	paths := []*BlueprintMiscContent{}
 	err := filepath.Walk(configPath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
-			return fmt.Errorf("error accessing examples in the path %q: %v", configPath, err)
+			return fmt.Errorf("error accessing examples in the path %q: %w", configPath, err)
 		}
 
 		// skip if this is a .terraform dir
@@ -60,7 +60,7 @@ func getDirPaths(configPath string, re *regexp.Regexp) ([]BlueprintMiscContent, 
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".tf") {
 			d := filepath.Dir(path)
 			if l := trimPath(d, re); l != "" {
-				dirPath := BlueprintMiscContent{
+				dirPath := &BlueprintMiscContent{
 					Name:     filepath.Base(d),
 					Location: l,
 				}
@@ -74,7 +74,7 @@ func getDirPaths(configPath string, re *regexp.Regexp) ([]BlueprintMiscContent, 
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error accessing examples in the path %q: %v", configPath, err)
+		return nil, fmt.Errorf("error accessing examples in the path %q: %w", configPath, err)
 	}
 
 	// Sort by configPath name before returning

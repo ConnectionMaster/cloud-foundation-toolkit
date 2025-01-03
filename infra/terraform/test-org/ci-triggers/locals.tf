@@ -27,10 +27,27 @@ locals {
   ]
   # custom mapping of the form name => repo_name used for overriding `terraform-google` prefix
   custom_repo_mapping = {
-    "cloud-foundation-training" = "cloud-foundation-training",
-    "example-foundation-app"    = "terraform-example-foundation-app",
-    "anthos-samples"            = "anthos-samples"
-    "docs-samples"              = "terraform-docs-samples"
+    "cloud-foundation-training"  = "cloud-foundation-training",
+    "example-foundation-app"     = "terraform-example-foundation-app",
+    "anthos-samples"             = "anthos-samples"
+    "docs-samples"               = "terraform-docs-samples"
+    "dynamic-python-webapp"      = "terraform-dynamic-python-webapp"
+    "dynamic-javascript-webapp"  = "terraform-dynamic-javascript-webapp"
+    "deploy-java-multizone"      = "terraform-example-deploy-java-multizone"
+    "ecommerce-microservices"    = "terraform-ecommerce-microservices-on-gke"
+    "deploy-java-gke"            = "terraform-example-deploy-java-gke"
+    "java-dynamic-point-of-sale" = "terraform-example-java-dynamic-point-of-sale"
+    "ml-image-annotation-gcf"    = "terraform-ml-image-annotation-gcf"
+    "genai-doc-summarization"    = "terraform-genai-doc-summarization"
+    "genai-knowledge-base"       = "terraform-genai-knowledge-base"
+    "secured-notebook"           = "notebooks-blueprint-security"
+    "sdw-onprem-ingest"          = "terraform-google-secured-data-warehouse-onprem-ingest"
+    "pubsub-golang-app"          = "terraform-pubsub-integration-golang"
+    "pubsub-java-app"            = "terraform-pubsub-integration-java"
+    "genai-rag"                  = "terraform-genai-rag"
+    "cloud-client-api"           = "terraform-cloud-client-api"
+    "dataanalytics-eventdriven"  = "terraform-dataanalytics-eventdriven"
+    "kms-solutions"              = "kms-solutions"
   }
   # example foundation has custom test modes
   example_foundation                = { "terraform-example-foundation" = data.terraform_remote_state.org.outputs.ci_repos_folders["example-foundation"] }
@@ -39,6 +56,7 @@ locals {
   repo_folder             = { for key, value in data.terraform_remote_state.org.outputs.ci_repos_folders : contains(keys(local.custom_repo_mapping), key) ? local.custom_repo_mapping[key] : "terraform-google-${key}" => value if !contains(local.exclude_folders, value.folder_name) }
   org_id                  = data.terraform_remote_state.org.outputs.org_id
   billing_account         = data.terraform_remote_state.org.outputs.billing_account
+  lr_billing_account      = data.terraform_remote_state.org.outputs.lr_billing_account
   tf_validator_project_id = data.terraform_remote_state.tf-validator.outputs.project_id
   tf_validator_folder_id  = trimprefix(data.terraform_remote_state.org.outputs.folders["ci-terraform-validator"], "folders/")
   # tf validator "ancestry path" expects non-plural type names for historical reasons
@@ -60,5 +78,5 @@ locals {
   # vod test project id
   vod_test_project_id = data.terraform_remote_state.org.outputs.ci_media_cdn_vod_project_id
   # file logger opt-in
-  enable_file_log = { "terraform-docs-samples": true }
+  enable_file_log = { "terraform-docs-samples" : true }
 }

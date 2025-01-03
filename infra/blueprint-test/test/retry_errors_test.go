@@ -28,7 +28,7 @@ import (
 func TestRetryErrors(t *testing.T) {
 	bpt := tft.NewTFBlueprintTest(t,
 		tft.WithTFDir("../examples/retry_errors"),
-		tft.WithSetupPath("./setup/simple_tf_module"),
+		tft.WithSetupPath("./setup"),
 		tft.WithRetryableTerraformErrors(tft.CommonRetryableErrors, 2, 3*time.Second),
 	)
 	bpt.DefineVerify(func(assert *assert.Assertions) {})
@@ -43,7 +43,7 @@ func TestRetryErrors(t *testing.T) {
 			out, err := terraform.ApplyE(t, bpt.GetTFOptions())
 			assert.Contains(out, "SERVICE_DISABLED")
 			errMsg := err.Error()
-			assert.Equal(errMsg, "'terraform [apply -input=false -auto-approve -lock=false]' unsuccessful after 2 retries")
+			assert.Equal(errMsg, "'terraform [apply -input=false -auto-approve -no-color -lock=false]' unsuccessful after 2 retries")
 		})
 	bpt.Test()
 }

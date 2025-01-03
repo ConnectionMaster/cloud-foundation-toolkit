@@ -1,5 +1,5 @@
 /**
- * Copyright 2019 Google LLC
+ * Copyright 2019-2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 
-output "branch_repos" {
-  value = local.branch_repos
-}
-
-output "label_repos" {
-  value = local.sub_repos_labels
-}
-
 output "labels" {
   value = local.labels
+}
+
+output "protected_repos" {
+  value = setunion([for k, v in module.repos_gcp.repos : k], [for k, v in module.repos_tgm.repos : k])
 }

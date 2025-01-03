@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -30,9 +29,9 @@ var (
 	templateFiles          embed.FS
 	kitchenCFTStageMapping = map[string]string{
 		"create":   stages[0],
-		"converge": stages[1],
-		"verify":   stages[2],
-		"destroy":  stages[3],
+		"converge": stages[2],
+		"verify":   stages[3],
+		"destroy":  stages[4],
 	}
 )
 
@@ -56,49 +55,49 @@ func convertKitchenTests() error {
 	}
 	err = writeFile(path.Join(intTestPath, goModFilename), fmt.Sprintf(goMod, path.Base(cwd)))
 	if err != nil {
-		return fmt.Errorf("error writing go mod file: %v", err)
+		return fmt.Errorf("error writing go mod file: %w", err)
 	}
 	// write discover test
 	discoverTest, err := getTmplFileContents(discoverTestFilename)
 	if err != nil {
 		return err
 	}
-	err = writeFile(path.Join(intTestPath, discoverTestFilename), string(discoverTest))
+	err = writeFile(path.Join(intTestPath, discoverTestFilename), discoverTest)
 	if err != nil {
-		return fmt.Errorf("error writing discover_test.go: %v", err)
+		return fmt.Errorf("error writing discover_test.go: %w", err)
 	}
 	testDirs, err := getCurrentTestDirs()
 	if err != nil {
-		return fmt.Errorf("error getting current test dirs: %v", err)
+		return fmt.Errorf("error getting current test dirs: %w", err)
 	}
 	for _, dir := range testDirs {
 		err = convertTest(path.Join(intTestPath, dir))
 		if err != nil {
-			return fmt.Errorf("error converting %s: %v", dir, err)
+			return fmt.Errorf("error converting %s: %w", dir, err)
 		}
 	}
 	// remove kitchen
 	err = os.Remove(".kitchen.yml")
 	if err != nil {
-		return fmt.Errorf("error removing .kitchen.yml: %v", err)
+		return fmt.Errorf("error removing .kitchen.yml: %w", err)
 	}
 	// convert build file
 	// We use build to identify commands to update and update the commands in the buildFile.
 	// This minimizes unnecessary diffs in build yaml due to round tripping.
 	build, buildFile, err := getBuildFromFile(intTestBuildFilePath)
 	if err != nil {
-		return fmt.Errorf("error unmarshalling %s: %v", intTestBuildFilePath, err)
+		return fmt.Errorf("error unmarshalling %s: %w", intTestBuildFilePath, err)
 	}
 	newBuildFile, err := transformBuild(build, buildFile)
 	if err != nil {
-		return fmt.Errorf("error transforming buildfile: %v", err)
+		return fmt.Errorf("error transforming buildfile: %w", err)
 	}
 	return writeFile(intTestBuildFilePath, newBuildFile)
 }
 
 // getCurrentTestDirs returns current test dirs in intTestPath
 func getCurrentTestDirs() ([]string, error) {
-	files, err := ioutil.ReadDir(intTestPath)
+	files, err := os.ReadDir(intTestPath)
 	if err != nil {
 		return nil, err
 	}
@@ -114,14 +113,14 @@ func getCurrentTestDirs() ([]string, error) {
 // convertTest converts a kitchen test in dir to blueprint test
 func convertTest(dir string) error {
 	// read inspec.yaml
-	f, err := ioutil.ReadFile(path.Join(dir, inspecInputsFile))
+	f, err := os.ReadFile(path.Join(dir, inspecInputsFile))
 	if err != nil {
-		return fmt.Errorf("error reading inspec file: %s", err)
+		return fmt.Errorf("error reading inspec file: %w", err)
 	}
 	var inspec inspecInputs
 	err = yaml.Unmarshal(f, &inspec)
 	if err != nil {
-		return fmt.Errorf("error unmarshalling inspec file: %s", err)
+		return fmt.Errorf("error unmarshalling inspec file: %w", err)
 	}
 	// get inspec input attributes
 	var inputs []string
@@ -132,17 +131,17 @@ func convertTest(dir string) error {
 	testName := path.Base(dir)
 	bpTest, err := getBPTestFromTmpl(testName, inputs)
 	if err != nil {
-		return fmt.Errorf("error creating blueprint test: %s", err)
+		return fmt.Errorf("error creating blueprint test: %w", err)
 	}
 	// remove old test
 	err = os.RemoveAll(dir)
 	if err != nil {
-		return fmt.Errorf("error removing old test dir: %s", err)
+		return fmt.Errorf("error removing old test dir: %w", err)
 	}
 	// write bpt
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("error creating test dir: %s", err)
+		return fmt.Errorf("error creating test dir: %w", err)
 	}
 	return writeFile(path.Join(dir, fmt.Sprintf("%s_test.go", strcase.ToSnake(testName))), bpTest)
 }
@@ -152,7 +151,7 @@ func getTmplFileContents(f string) (string, error) {
 	tmplF := path.Join("templates", fmt.Sprintf("%s%s", f, tmplSuffix))
 	contents, err := templateFiles.ReadFile(tmplF)
 	if err != nil {
-		return "", fmt.Errorf("error reading %s : %v", tmplF, err)
+		return "", fmt.Errorf("error reading %s : %w", tmplF, err)
 	}
 	return string(contents), nil
 }
@@ -193,7 +192,7 @@ func getBPTestFromTmpl(testName string, inputs []string) (string, error) {
 
 // writeFile writes content to file path
 func writeFile(p string, content string) error {
-	return ioutil.WriteFile(p, []byte(content), os.ModePerm)
+	return os.WriteFile(p, []byte(content), os.ModePerm)
 }
 
 // transformBuild transforms cloudbuild file contents with kitchen commands to CFT cli commands
@@ -245,7 +244,7 @@ func getCFTCmd(kitchenCmd string) (string, error) {
 
 // getBuildFromFile unmarshalls a cloudbuild file
 func getBuildFromFile(fp string) (*cb.Build, string, error) {
-	f, err := ioutil.ReadFile(fp)
+	f, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, "", err
 	}

@@ -18,7 +18,6 @@
 package gcloud
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -48,7 +47,7 @@ func TestActivateCredsAndEnvVars(t *testing.T) {
 			assert.Equal(os.Getenv("GOOGLE_CREDENTIALS"), creds)
 			pathEnvVars := []string{"CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "GOOGLE_APPLICATION_CREDENTIALS"}
 			for _, v := range pathEnvVars {
-				c, err := ioutil.ReadFile(os.Getenv(v))
+				c, err := os.ReadFile(os.Getenv(v))
 				assert.NoError(err)
 				assert.Equal(string(c), creds)
 			}
@@ -79,6 +78,25 @@ func TestRunf(t *testing.T) {
 				t.Logf("Skipping test, %s envvar not set", tt.projectIdEnvVar)
 				t.Skip()
 			}
+		})
+	}
+}
+
+func TestRun(t *testing.T) {
+	tests := []struct {
+		name            string
+		cmd             string
+	}{
+		{
+			name:            "Run with quotes",
+			cmd:             "organizations list --filter=\"DISPLAY_NAME!=google.com AND lifecycleState=ACTIVE\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := Runf(t, tt.cmd)
+			assert := assert.New(t)
+			assert.NotEmpty(op.String())
 		})
 	}
 }

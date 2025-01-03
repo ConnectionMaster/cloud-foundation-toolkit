@@ -2,6 +2,9 @@ package bpmetadata
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/ast"
@@ -9,6 +12,7 @@ import (
 
 type mdContent struct {
 	literal   string
+	url       string
 	listItems []mdListItem
 }
 
@@ -16,6 +20,8 @@ type mdListItem struct {
 	text string
 	url  string
 }
+
+var reTimeEstimate = regexp.MustCompile(`(Configuration|Deployment):\s([0-9]+)\smins`)
 
 // getMdContent accepts 3 types of content requests and return and mdContent object
 // with the relevant content info. The 3 scenarios are:
@@ -38,6 +44,7 @@ func getMdContent(content []byte, headLevel int, headOrder int, headTitle string
 		currLeaf := ast.GetFirstChild(section).AsLeaf()
 		switch sectionType := section.(type) {
 		case *ast.Heading:
+			foundHead = false
 			if headTitle == string(currLeaf.Literal) {
 				foundHead = true
 			}
@@ -54,6 +61,16 @@ func getMdContent(content []byte, headLevel int, headOrder int, headTitle string
 
 		case *ast.Paragraph:
 			if getContent && (headOrder == orderCtr || foundHead) {
+				// check if the content is a link
+				l := ast.GetLastChild(currLeaf.Parent)
+				lNode, isLink := l.(*ast.Link)
+				if isLink {
+					return &mdContent{
+						literal: string(ast.GetFirstChild(lNode).AsLeaf().Literal),
+						url:     string(lNode.Destination),
+					}, nil
+				}
+
 				return &mdContent{
 					literal: string(currLeaf.Literal),
 				}, nil
@@ -95,4 +112,109 @@ func getMdContent(content []byte, headLevel int, headOrder int, headTitle string
 	}
 
 	return nil, fmt.Errorf("unable to find md content")
+}
+
+// getDeploymentDuration creates the deployment and configuration time
+// estimates for the blueprint from README.md
+func getDeploymentDuration(content []byte, headTitle string) (*BlueprintTimeEstimate, error) {
+	durationDetails, err := getMdContent(content, -1, -1, headTitle, true)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := reTimeEstimate.FindAllStringSubmatch(durationDetails.literal, -1)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("unable to find deployment duration")
+	}
+
+	var timeEstimate BlueprintTimeEstimate
+	for _, m := range matches {
+		// each m[2] will have the time in mins
+		i, err := strconv.ParseInt(m[2], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		if m[1] == "Configuration" {
+			timeEstimate.ConfigurationSecs = i * 60
+			continue
+		}
+
+		if m[1] == "Deployment" {
+			timeEstimate.DeploymentSecs = i * 60
+			continue
+		}
+	}
+
+	return &timeEstimate, nil
+}
+
+// getCostEstimate creates the cost estimates from the cost calculator
+// links provided in README.md
+func getCostEstimate(content []byte, headTitle string) (*BlueprintCostEstimate, error) {
+	costDetails, err := getMdContent(content, -1, -1, headTitle, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return &BlueprintCostEstimate{
+		Description: costDetails.literal,
+		Url:         costDetails.url,
+	}, nil
+}
+
+// getArchitctureInfo parses and builds Architecture details from README.md
+func getArchitctureInfo(content []byte, headTitle string) (*BlueprintArchitecture, error) {
+	mdDocument := markdown.Parse(content, nil)
+	if mdDocument == nil {
+		return nil, fmt.Errorf("unable to parse md content")
+	}
+
+	children := mdDocument.GetChildren()
+	for _, node := range children {
+		h, isHeading := node.(*ast.Heading)
+		if !isHeading {
+			continue
+		}
+
+		// check if this is the architecture heading
+		hLiteral := string(ast.GetFirstChild(h).AsLeaf().Literal)
+		if hLiteral != headTitle {
+			continue
+		}
+
+		//get architecture details
+		infoNode := ast.GetNextNode(h)
+		paraNode, isPara := infoNode.(*ast.Paragraph)
+		if !isPara {
+			continue
+		}
+
+		t := ast.GetLastChild(paraNode)
+		_, isText := t.(*ast.Text)
+		if !isText {
+			continue
+		}
+
+		d := strings.TrimLeft(string(t.AsLeaf().Literal), "\n")
+		dList := strings.Split(d, "\n")
+		i := ast.GetPrevNode(t)
+		iNode, isImage := i.(*ast.Image)
+		if isImage {
+			return &BlueprintArchitecture{
+				Description: dList,
+				DiagramUrl:  string(iNode.Destination),
+			}, nil
+		}
+
+		lNode, isLink := i.(*ast.Link)
+		if isLink {
+			return &BlueprintArchitecture{
+				Description: dList,
+				DiagramUrl:  string(lNode.Destination),
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unable to find architecture content")
 }
